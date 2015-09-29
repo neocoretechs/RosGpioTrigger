@@ -66,9 +66,10 @@ public class RosGpioRcTime extends AbstractNodeMain  {
 	// Queue that receives events from state changes, triggers publishing
 	ArrayBlockingQueue<diagnostic_msgs.DiagnosticStatus> queue = new ArrayBlockingQueue<diagnostic_msgs.DiagnosticStatus>(1024);
 	// time
-	long rcMillis = 0;
-	long rcAverage = 0;
-	long rcAlert = 25; // time in millis deviation from running average discharge time
+	long rcMillis = 0; // millis of current reading
+	long rcAverage = 0; // running average of readings
+	long rcAlert = 25; // time in millis deviation from running average discharge time, beyond this an event is triggered
+	long rcMax = 1000; // maximum reading in millis, beyond this the event is discarded as anomaly
 	// Gpio listener
 	GpListener gpListener = null;
 	
@@ -133,6 +134,10 @@ public class RosGpioRcTime extends AbstractNodeMain  {
               // display pin state on console
               //System.out.println(" --> GPIO PIN STATE CHANGE: " + event.getPin() + " = " + event.getState() + " in "+ rcElapsed +" ave:"+rcAverage);
               rcMillis = System.currentTimeMillis();
+              if( rcElapsed > rcMax ) {
+            	  System.out.println("Elapsed time anomaly discarded: "+rcElapsed+" ms.");
+            	  return;
+              }
               if( rcAverage == 0 )
             	  rcAverage = rcElapsed;
               else
@@ -144,6 +149,8 @@ public class RosGpioRcTime extends AbstractNodeMain  {
 				imghead.setStamp(tst);
 				imghead.setFrameId("0");
 				*/
+              // If average time deviates from elapsed time by rcAlert value, its a hit
+              // publish message to bus for processing
               if( Math.abs(rcAverage-rcElapsed) > rcAlert) {
                 System.out.println(" --> GPIO PIN STATE CHANGE: " + event.getPin() + " = " + event.getState() + " in "+ rcElapsed +" ave:"+rcAverage);
 				DiagnosticStatus statmsg = statpub.newMessage();
